@@ -1,0 +1,69 @@
+CREATE DATABASE TransportDB;
+
+USE TransportDB;
+
+
+-- 1. Vehicles table
+CREATE TABLE Vehicles (
+    VehicleID INT IDENTITY(1,1) PRIMARY KEY,
+    Model NVARCHAR(255),
+    Capacity DECIMAL(10, 2),
+    Type NVARCHAR(50),
+    Status NVARCHAR(50)
+);
+
+-- 2. Routes table
+CREATE TABLE Routes (
+    RouteID INT IDENTITY(1,1) PRIMARY KEY,
+    StartDestination NVARCHAR(255),
+    EndDestination NVARCHAR(255),
+    Distance DECIMAL(10, 2)
+);
+
+-- 3. Trips table
+CREATE TABLE Trips (
+    TripID INT IDENTITY(1,1) PRIMARY KEY,
+    VehicleID INT FOREIGN KEY REFERENCES Vehicles(VehicleID),
+    RouteID INT FOREIGN KEY REFERENCES Routes(RouteID),
+    DepartureDate DATETIME,
+    ArrivalDate DATETIME,
+    Status NVARCHAR(50),
+    TripType NVARCHAR(50) DEFAULT 'Freight',
+    MaxPassengers INT
+);
+
+-- 4. Passengers table
+CREATE TABLE Passengers (
+    PassengerID INT IDENTITY(1,1) PRIMARY KEY,
+    FirstName NVARCHAR(255),
+    Gender NVARCHAR(255),
+    Age INT,
+    Email NVARCHAR(255) UNIQUE,
+    PhoneNumber NVARCHAR(50)
+);
+
+-- 5. Bookings table
+CREATE TABLE Bookings (
+    BookingID INT IDENTITY(1,1) PRIMARY KEY,
+    TripID INT FOREIGN KEY REFERENCES Trips(TripID),
+    PassengerID INT FOREIGN KEY REFERENCES Passengers(PassengerID),
+    BookingDate DATETIME,
+    Status NVARCHAR(50)
+);
+
+-- 6. Drivers table (Assumed required)
+CREATE TABLE Drivers (
+    DriverID INT IDENTITY(1,1) PRIMARY KEY,
+    Name NVARCHAR(255),
+    LicenseNumber NVARCHAR(100) UNIQUE,
+    Status NVARCHAR(50)
+);
+
+-- 7. TripDriverMapping table
+CREATE TABLE TripDriverMapping (
+    TripID INT,
+    DriverID INT,
+    PRIMARY KEY (TripID, DriverID),
+    FOREIGN KEY (TripID) REFERENCES Trips(TripID),
+    FOREIGN KEY (DriverID) REFERENCES Drivers(DriverID)
+);

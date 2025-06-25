@@ -1,0 +1,190 @@
+
+namespace TransportManagementSystem.entity
+{
+    public class Vehicle
+    {
+        public int VehicleID { get; set; }
+        public string Model { get; set; }
+        public decimal Capacity { get; set; }
+        public string Type { get; set; }
+        public string Status { get; set; }
+    }
+}
+
+// entity/Booking.cs
+namespace TransportManagementSystem.entity
+{
+    public class Booking
+    {
+        public int BookingID { get; set; }
+        public int TripID { get; set; }
+        public int PassengerID { get; set; }
+        public DateTime BookingDate { get; set; }
+        public string Status { get; set; }
+    }
+}
+
+
+// dao/ITransportService.cs
+using System.Collections.Generic;
+using TransportManagementSystem.entity;
+
+namespace TransportManagementSystem.dao
+{
+    public interface ITransportService
+    {
+        bool AddVehicle(Vehicle vehicle);
+        bool UpdateVehicle(Vehicle vehicle);
+        bool DeleteVehicle(int vehicleId);
+        List<Booking> GetBookingsByPassenger(int passengerId);
+    }
+}
+
+
+// dao/TransportServiceImpl.cs
+using System;
+using System.Collections.Generic;
+using System.Data.SqlClient;
+using TransportManagementSystem.entity;
+using TransportManagementSystem.util;
+
+namespace TransportManagementSystem.dao
+{
+    public class TransportServiceImpl : ITransportService
+    {
+        public bool AddVehicle(Vehicle vehicle)
+        {
+            using (SqlConnection conn = DBConnection.GetConnection())
+            {
+                string query = "INSERT INTO Vehicles (Model, Capacity, Type, Status) VALUES (@Model, @Capacity, @Type, @Status)";
+                SqlCommand cmd = new SqlCommand(query, conn);
+                cmd.Parameters.AddWithValue("@Model", vehicle.Model);
+                cmd.Parameters.AddWithValue("@Capacity", vehicle.Capacity);
+                cmd.Parameters.AddWithValue("@Type", vehicle.Type);
+                cmd.Parameters.AddWithValue("@Status", vehicle.Status);
+                conn.Open();
+                return cmd.ExecuteNonQuery() > 0;
+            }
+        }
+
+        public bool UpdateVehicle(Vehicle vehicle)
+        {
+            using (SqlConnection conn = DBConnection.GetConnection())
+            {
+                string query = "UPDATE Vehicles SET Model=@Model, Capacity=@Capacity, Type=@Type, Status=@Status WHERE VehicleID=@VehicleID";
+                SqlCommand cmd = new SqlCommand(query, conn);
+                cmd.Parameters.AddWithValue("@Model", vehicle.Model);
+                cmd.Parameters.AddWithValue("@Capacity", vehicle.Capacity);
+                cmd.Parameters.AddWithValue("@Type", vehicle.Type);
+                cmd.Parameters.AddWithValue("@Status", vehicle.Status);
+                cmd.Parameters.AddWithValue("@VehicleID", vehicle.VehicleID);
+                conn.Open();
+                return cmd.ExecuteNonQuery() > 0;
+            }
+        }
+
+        public bool DeleteVehicle(int vehicleId)
+        {
+            using (SqlConnection conn = DBConnection.GetConnection())
+            {
+                string query = "DELETE FROM Vehicles WHERE VehicleID=@VehicleID";
+                SqlCommand cmd = new SqlCommand(query, conn);
+                cmd.Parameters.AddWithValue("@VehicleID", vehicleId);
+                conn.Open();
+                return cmd.ExecuteNonQuery() > 0;
+            }
+        }
+
+        public List<Booking> GetBookingsByPassenger(int passengerId)
+        {
+            List<Booking> bookings = new List<Booking>();
+            using (SqlConnection conn = DBConnection.GetConnection())
+            {
+                string query = "SELECT * FROM Bookings WHERE PassengerID = @PassengerID";
+                SqlCommand cmd = new SqlCommand(query, conn);
+                cmd.Parameters.AddWithValue("@PassengerID", passengerId);
+                conn.Open();
+                SqlDataReader reader = cmd.ExecuteReader();
+                while (reader.Read())
+                {
+                    bookings.Add(new Booking
+                    {
+                        BookingID = (int)reader["BookingID"],
+                        TripID = (int)reader["TripID"],
+                        PassengerID = (int)reader["PassengerID"],
+                        BookingDate = (DateTime)reader["BookingDate"],
+                        Status = reader["Status"].ToString()
+                    });
+                }
+            }
+            return bookings;
+        }
+    }
+}
+
+
+// util/DBConnection.cs
+using System.Configuration;
+using System.Data.SqlClient;
+
+namespace TransportManagementSystem.util
+{
+    public class DBConnection
+    {
+        private static SqlConnection connection;
+
+        public static SqlConnection GetConnection()
+        {
+            if (connection == null)
+            {
+                string connStr = ConfigurationManager.ConnectionStrings["TransportDB"].ConnectionString;
+                connection = new SqlConnection(connStr);
+            }
+            return connection;
+        }
+    }
+}
+
+
+// app/TransportManagementApp.cs
+using System;
+using TransportManagementSystem.dao;
+using TransportManagementSystem.entity;
+
+namespace TransportManagementSystem.app
+{
+    class TransportManagementApp
+    {
+        static void Main(string[] args)
+        {
+            ITransportService service = new TransportServiceImpl();
+
+            Console.WriteLine("1. Add Vehicle\n2. Update Vehicle\n3. Delete Vehicle\n4. View Bookings by Passenger");
+            int choice = int.Parse(Console.ReadLine());
+
+            switch (choice)
+            {
+                case 1:
+                    var v = new Vehicle { Model = "Volvo", Capacity = 40, Type = "Bus", Status = "Available" };
+                    Console.WriteLine(service.AddVehicle(v) ? "Added" : "Failed");
+                    break;
+                case 2:
+                    var u = new Vehicle { VehicleID = 1, Model = "Tata", Capacity = 35, Type = "Van", Status = "Maintenance" };
+                    Console.WriteLine(service.UpdateVehicle(u) ? "Updated" : "Failed");
+                    break;
+                case 3:
+                    Console.WriteLine("Enter Vehicle ID to delete:");
+                    int id = int.Parse(Console.ReadLine());
+                    Console.WriteLine(service.DeleteVehicle(id) ? "Deleted" : "Failed");
+                    break;
+                case 4:
+                    Console.WriteLine("Enter Passenger ID:");
+                    int pid = int.Parse(Console.ReadLine());
+                    var bookings = service.GetBookingsByPassenger(pid);
+                    foreach (var b in bookings)
+                        Console.WriteLine($"BookingID: {b.BookingID}, Status: {b.Status}");
+                    break;
+            }
+        }
+    }
+}

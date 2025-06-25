@@ -1,51 +1,36 @@
+// COMPLETE BEGINNER-FRIENDLY TRANSPORT MANAGEMENT SYSTEM
+// ALL REQUIRED FUNCTIONS AND EXCEPTIONS IMPLEMENTED WITH DETAILS
 
-namespace TransportManagementSystem.entity
+// ------------------ EXCEPTIONS ------------------
+// VehicleNotFoundException.cs
+using System;
+
+namespace TransportManagementSystem.exception
 {
-    public class Vehicle
+    public class VehicleNotFoundException : Exception
     {
-        public int VehicleID { get; set; }
-        public string Model { get; set; }
-        public decimal Capacity { get; set; }
-        public string Type { get; set; }
-        public string Status { get; set; }
+        public VehicleNotFoundException(string message) : base(message) { }
     }
 }
 
-// entity/Booking.cs
-namespace TransportManagementSystem.entity
+// BookingNotFoundException.cs
+using System;
+
+namespace TransportManagementSystem.exception
 {
-    public class Booking
+    public class BookingNotFoundException : Exception
     {
-        public int BookingID { get; set; }
-        public int TripID { get; set; }
-        public int PassengerID { get; set; }
-        public DateTime BookingDate { get; set; }
-        public string Status { get; set; }
+        public BookingNotFoundException(string message) : base(message) { }
     }
 }
 
-
-// dao/ITransportService.cs
-using System.Collections.Generic;
-using TransportManagementSystem.entity;
-
-namespace TransportManagementSystem.dao
-{
-    public interface ITransportService
-    {
-        bool AddVehicle(Vehicle vehicle);
-        bool UpdateVehicle(Vehicle vehicle);
-        bool DeleteVehicle(int vehicleId);
-        List<Booking> GetBookingsByPassenger(int passengerId);
-    }
-}
-
-
-// dao/TransportServiceImpl.cs
+// ------------------ DAO IMPLEMENTATION (FULL) ------------------
+// TransportServiceImpl.cs
 using System;
 using System.Collections.Generic;
 using System.Data.SqlClient;
 using TransportManagementSystem.entity;
+using TransportManagementSystem.exception;
 using TransportManagementSystem.util;
 
 namespace TransportManagementSystem.dao
@@ -73,13 +58,16 @@ namespace TransportManagementSystem.dao
             {
                 string query = "UPDATE Vehicles SET Model=@Model, Capacity=@Capacity, Type=@Type, Status=@Status WHERE VehicleID=@VehicleID";
                 SqlCommand cmd = new SqlCommand(query, conn);
+                cmd.Parameters.AddWithValue("@VehicleID", vehicle.VehicleID);
                 cmd.Parameters.AddWithValue("@Model", vehicle.Model);
                 cmd.Parameters.AddWithValue("@Capacity", vehicle.Capacity);
                 cmd.Parameters.AddWithValue("@Type", vehicle.Type);
                 cmd.Parameters.AddWithValue("@Status", vehicle.Status);
-                cmd.Parameters.AddWithValue("@VehicleID", vehicle.VehicleID);
                 conn.Open();
-                return cmd.ExecuteNonQuery() > 0;
+                int rows = cmd.ExecuteNonQuery();
+                if (rows == 0)
+                    throw new VehicleNotFoundException("Vehicle not found with ID: " + vehicle.VehicleID);
+                return true;
             }
         }
 
@@ -91,6 +79,90 @@ namespace TransportManagementSystem.dao
                 SqlCommand cmd = new SqlCommand(query, conn);
                 cmd.Parameters.AddWithValue("@VehicleID", vehicleId);
                 conn.Open();
+                int rows = cmd.ExecuteNonQuery();
+                if (rows == 0)
+                    throw new VehicleNotFoundException("Vehicle not found with ID: " + vehicleId);
+                return true;
+            }
+        }
+
+        public bool ScheduleTrip(int vehicleId, int routeId, string departureDate, string arrivalDate)
+        {
+            using (SqlConnection conn = DBConnection.GetConnection())
+            {
+                string query = "INSERT INTO Trips (VehicleID, RouteID, DepartureDate, ArrivalDate, Status, TripType, MaxPassengers) VALUES (@VehicleID, @RouteID, @DepartureDate, @ArrivalDate, 'Scheduled', 'Freight', 0)";
+                SqlCommand cmd = new SqlCommand(query, conn);
+                cmd.Parameters.AddWithValue("@VehicleID", vehicleId);
+                cmd.Parameters.AddWithValue("@RouteID", routeId);
+                cmd.Parameters.AddWithValue("@DepartureDate", DateTime.Parse(departureDate));
+                cmd.Parameters.AddWithValue("@ArrivalDate", DateTime.Parse(arrivalDate));
+                conn.Open();
+                return cmd.ExecuteNonQuery() > 0;
+            }
+        }
+
+        public bool CancelTrip(int tripId)
+        {
+            using (SqlConnection conn = DBConnection.GetConnection())
+            {
+                string query = "UPDATE Trips SET Status='Cancelled' WHERE TripID=@TripID";
+                SqlCommand cmd = new SqlCommand(query, conn);
+                cmd.Parameters.AddWithValue("@TripID", tripId);
+                conn.Open();
+                return cmd.ExecuteNonQuery() > 0;
+            }
+        }
+
+        public bool BookTrip(int tripId, int passengerId, string bookingDate)
+        {
+            using (SqlConnection conn = DBConnection.GetConnection())
+            {
+                string query = "INSERT INTO Bookings (TripID, PassengerID, BookingDate, Status) VALUES (@TripID, @PassengerID, @BookingDate, 'Confirmed')";
+                SqlCommand cmd = new SqlCommand(query, conn);
+                cmd.Parameters.AddWithValue("@TripID", tripId);
+                cmd.Parameters.AddWithValue("@PassengerID", passengerId);
+                cmd.Parameters.AddWithValue("@BookingDate", DateTime.Parse(bookingDate));
+                conn.Open();
+                return cmd.ExecuteNonQuery() > 0;
+            }
+        }
+
+        public bool CancelBooking(int bookingId)
+        {
+            using (SqlConnection conn = DBConnection.GetConnection())
+            {
+                string query = "UPDATE Bookings SET Status='Cancelled' WHERE BookingID=@BookingID";
+                SqlCommand cmd = new SqlCommand(query, conn);
+                cmd.Parameters.AddWithValue("@BookingID", bookingId);
+                conn.Open();
+                int rows = cmd.ExecuteNonQuery();
+                if (rows == 0)
+                    throw new BookingNotFoundException("Booking not found with ID: " + bookingId);
+                return true;
+            }
+        }
+
+        public bool AllocateDriver(int tripId, int driverId)
+        {
+            using (SqlConnection conn = DBConnection.GetConnection())
+            {
+                string query = "INSERT INTO TripDriverMapping (TripID, DriverID) VALUES (@TripID, @DriverID)";
+                SqlCommand cmd = new SqlCommand(query, conn);
+                cmd.Parameters.AddWithValue("@TripID", tripId);
+                cmd.Parameters.AddWithValue("@DriverID", driverId);
+                conn.Open();
+                return cmd.ExecuteNonQuery() > 0;
+            }
+        }
+
+        public bool DeallocateDriver(int tripId)
+        {
+            using (SqlConnection conn = DBConnection.GetConnection())
+            {
+                string query = "DELETE FROM TripDriverMapping WHERE TripID=@TripID";
+                SqlCommand cmd = new SqlCommand(query, conn);
+                cmd.Parameters.AddWithValue("@TripID", tripId);
+                conn.Open();
                 return cmd.ExecuteNonQuery() > 0;
             }
         }
@@ -100,15 +172,14 @@ namespace TransportManagementSystem.dao
             List<Booking> bookings = new List<Booking>();
             using (SqlConnection conn = DBConnection.GetConnection())
             {
-                string query = "SELECT * FROM Bookings WHERE PassengerID = @PassengerID";
+                string query = "SELECT * FROM Bookings WHERE PassengerID=@PassengerID";
                 SqlCommand cmd = new SqlCommand(query, conn);
                 cmd.Parameters.AddWithValue("@PassengerID", passengerId);
                 conn.Open();
                 SqlDataReader reader = cmd.ExecuteReader();
                 while (reader.Read())
                 {
-                    bookings.Add(new Booking
-                    {
+                    bookings.Add(new Booking {
                         BookingID = (int)reader["BookingID"],
                         TripID = (int)reader["TripID"],
                         PassengerID = (int)reader["PassengerID"],
@@ -119,72 +190,51 @@ namespace TransportManagementSystem.dao
             }
             return bookings;
         }
-    }
-}
 
-
-// util/DBConnection.cs
-using System.Configuration;
-using System.Data.SqlClient;
-
-namespace TransportManagementSystem.util
-{
-    public class DBConnection
-    {
-        private static SqlConnection connection;
-
-        public static SqlConnection GetConnection()
+        public List<Booking> GetBookingsByTrip(int tripId)
         {
-            if (connection == null)
+            List<Booking> bookings = new List<Booking>();
+            using (SqlConnection conn = DBConnection.GetConnection())
             {
-                string connStr = ConfigurationManager.ConnectionStrings["TransportDB"].ConnectionString;
-                connection = new SqlConnection(connStr);
+                string query = "SELECT * FROM Bookings WHERE TripID=@TripID";
+                SqlCommand cmd = new SqlCommand(query, conn);
+                cmd.Parameters.AddWithValue("@TripID", tripId);
+                conn.Open();
+                SqlDataReader reader = cmd.ExecuteReader();
+                while (reader.Read())
+                {
+                    bookings.Add(new Booking {
+                        BookingID = (int)reader["BookingID"],
+                        TripID = (int)reader["TripID"],
+                        PassengerID = (int)reader["PassengerID"],
+                        BookingDate = (DateTime)reader["BookingDate"],
+                        Status = reader["Status"].ToString()
+                    });
+                }
             }
-            return connection;
+            return bookings;
         }
-    }
-}
 
-
-// app/TransportManagementApp.cs
-using System;
-using TransportManagementSystem.dao;
-using TransportManagementSystem.entity;
-
-namespace TransportManagementSystem.app
-{
-    class TransportManagementApp
-    {
-        static void Main(string[] args)
+        public List<Driver> GetAvailableDrivers()
         {
-            ITransportService service = new TransportServiceImpl();
-
-            Console.WriteLine("1. Add Vehicle\n2. Update Vehicle\n3. Delete Vehicle\n4. View Bookings by Passenger");
-            int choice = int.Parse(Console.ReadLine());
-
-            switch (choice)
+            List<Driver> drivers = new List<Driver>();
+            using (SqlConnection conn = DBConnection.GetConnection())
             {
-                case 1:
-                    var v = new Vehicle { Model = "Volvo", Capacity = 40, Type = "Bus", Status = "Available" };
-                    Console.WriteLine(service.AddVehicle(v) ? "Added" : "Failed");
-                    break;
-                case 2:
-                    var u = new Vehicle { VehicleID = 1, Model = "Tata", Capacity = 35, Type = "Van", Status = "Maintenance" };
-                    Console.WriteLine(service.UpdateVehicle(u) ? "Updated" : "Failed");
-                    break;
-                case 3:
-                    Console.WriteLine("Enter Vehicle ID to delete:");
-                    int id = int.Parse(Console.ReadLine());
-                    Console.WriteLine(service.DeleteVehicle(id) ? "Deleted" : "Failed");
-                    break;
-                case 4:
-                    Console.WriteLine("Enter Passenger ID:");
-                    int pid = int.Parse(Console.ReadLine());
-                    var bookings = service.GetBookingsByPassenger(pid);
-                    foreach (var b in bookings)
-                        Console.WriteLine($"BookingID: {b.BookingID}, Status: {b.Status}");
-                    break;
+                string query = "SELECT * FROM Drivers WHERE Status='Available'";
+                SqlCommand cmd = new SqlCommand(query, conn);
+                conn.Open();
+                SqlDataReader reader = cmd.ExecuteReader();
+                while (reader.Read())
+                {
+                    drivers.Add(new Driver {
+                        DriverID = (int)reader["DriverID"],
+                        Name = reader["Name"].ToString(),
+                        LicenseNumber = reader["LicenseNumber"].ToString(),
+                        Status = reader["Status"].ToString()
+                    });
+                }
             }
+            return drivers;
         }
     }
 }
